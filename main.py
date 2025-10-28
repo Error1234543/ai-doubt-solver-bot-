@@ -1,74 +1,109 @@
-import telebot
-from flask import Flask, request
-import requests
 import os
+from flask import Flask, request
+import telebot
+import openai
 
+# ==============================
+# 🔧 CONFIG
+# ==============================
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-GROUP_ID = int(os.getenv("GROUP_ID"))
+ALLOWED_GROUP_ID = -1001234567890  # 👈 apna group ID yaha daalna
+OWNER_ID = 7447651332              # 👈 apna Telegram user ID
+AUTHORIZED_USERS = {OWNER_ID}      # /auth se aur add honge
+
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN missing! Set it in Render Environment Variables.")
+if not OPENAI_API_KEY:
+    raise ValueError("❌ OPENAI_API_KEY missing!")
+
+openai.api_key = OPENAI_API_KEY
 
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
-ALLOWED_USERS = set()
-
-# Authorize command
+# ==============================
+# 🔒 AUTH SYSTEM
+# ==============================
 @bot.message_handler(commands=['auth'])
-def authorize(message):
-    if message.chat.id != GROUP_ID:
-        bot.reply_to(message, "❌ આ બોટ ફક્ત અધિકૃત જૂથમાં જ કાર્ય કરે છે.")
-        return
-    ALLOWED_USERS.add(message.from_user.id)
-    bot.reply_to(message, "✅ હવે તમે બોટનો ઉપયોગ કરી શકો છો!")
-
-# Handle text
-@bot.message_handler(func=lambda msg: msg.chat.id == GROUP_ID and msg.from_user.id in ALLOWED_USERS, content_types=['text'])
-def handle_text(message):
-    prompt = message.text
-    reply = get_ai_response(prompt)
-    bot.reply_to(message, reply)
-
-# Handle photo
-@bot.message_handler(content_types=['photo'])
-def handle_photo(message):
-    if message.chat.id != GROUP_ID or message.from_user.id not in ALLOWED_USERS:
-        bot.reply_to(message, "❌ તમે અધિકૃત નથી.")
+def authorize_user(message):
+    if message.from_user.id != OWNER_ID:
+        bot.reply_to(message, "❌ Sirf owner hi access de sakta hai.")
         return
 
-    file_id = message.photo[-1].file_id
-    file_info = bot.get_file(file_id)
-    file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
-
-    prompt = f"Describe and solve this NEET/JEE doubt in Gujarati:\nImage URL: {file_url}"
-    reply = get_ai_response(prompt)
-    bot.reply_to(message, reply)
-
-def get_ai_response(prompt):
-    url = "https://api.openai.com/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-    data = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": prompt}]
-    }
     try:
-        r = requests.post(url, headers=headers, json=data, timeout=30)
-        res = r.json()
-        return res['choices'][0]['message']['content']
+        user_id = int(message.text.split()[1])
+        AUTHORIZED_USERS.add(user_id)
+        bot.reply_to(message, f"✅ Access granted to {user_id}")
+    except:
+        bot.reply_to(message, "❌ Format: /auth <user_id>")
+
+# ==============================
+# 🧠 AI SOLVER
+# ==============================
+def ask_ai(prompt):
+    """Gujarati + NEET/JEE focus AI response"""
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "તમે NEET/JEE ના પ્રશ્નો માટે ગુજરાતી માં સમજ આપતો AI છો."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=600
+        )
+        return response.choices[0].message['content']
     except Exception as e:
         return f"⚠️ Error: {e}"
 
-@app.route('/' + BOT_TOKEN, methods=['POST'])
-def getMessage():
-    json_str = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_str)
-    bot.process_new_updates([update])
-    return "!", 200
+# ==============================
+# 📸 IMAGE DOUBT HANDLER
+# ==============================
+@bot.message_handler(content_types=['photo'])
+def handle_photo(message):
+    if message.chat.id != ALLOWED_GROUP_ID:
+        return
+    if message.from_user.id not in AUTHORIZED_USERS:
+        bot.reply_to(message, "❌ Access denied. Contact owner.")
+        return
 
+    bot.reply_to(message, "🧠 Analyzing image... (please wait)")
+    try:
+        file_info = bot.get_file(message.photo[-1].file_id)
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_info.file_path}"
+        prompt = f"Explain this NEET/JEE question in Gujarati:\nImage URL: {file_url}"
+        ai_response = ask_ai(prompt)
+        bot.reply_to(message, ai_response)
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Image processing error: {e}")
+
+# ==============================
+# ✍️ TEXT DOUBT HANDLER
+# ==============================
+@bot.message_handler(func=lambda m: True)
+def handle_text(message):
+    if message.chat.id != ALLOWED_GROUP_ID:
+        return
+    if message.from_user.id not in AUTHORIZED_USERS:
+        bot.reply_to(message, "❌ Access denied. Contact owner.")
+        return
+
+    ai_reply = ask_ai(message.text)
+    bot.reply_to(message, ai_reply)
+
+# ==============================
+# 🌐 FLASK SERVER FOR RENDER
+# ==============================
 @app.route('/')
+def home():
+    return "🤖 AI Doubt Solver Bot Running!"
+
+@app.route(f'/{BOT_TOKEN}', methods=['POST'])
 def webhook():
-    bot.remove_webhook()
-    bot.set_webhook(url=f"{os.getenv('RENDER_EXTERNAL_URL')}/{BOT_TOKEN}")
-    return "Bot is running!", 200
+    update = request.get_json(force=True)
+    bot.process_new_updates([telebot.types.Update.de_json(update)])
+    return "OK", 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)
