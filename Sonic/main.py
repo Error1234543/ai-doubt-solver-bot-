@@ -9,8 +9,8 @@ import openai
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ALLOWED_GROUP_ID = -1001234567890  # 👈 apna group ID daalna
-OWNER_ID = 7447651332
-AUTHORIZED_USERS = {OWNER_ID}
+OWNER_ID = 8226637107
+AUTHORIZED_USERS = {8226637107}
 
 if not BOT_TOKEN:
     raise ValueError("❌ BOT_TOKEN missing! Set it in Render Environment Variables.")
