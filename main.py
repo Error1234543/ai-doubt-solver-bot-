@@ -6,8 +6,8 @@ import openai
 # ---------- CONFIG (set these in Koyeb environment variables) ----------
 BOT_TOKEN = os.getenv("BOT_TOKEN")          # e.g. 123456:ABCxyz
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OWNER_ID = int(os.getenv("OWNER_ID", "7447651332"))           # change if you want
-ALLOWED_GROUP_ID = int(os.getenv("ALLOWED_GROUP_ID", "-1002432150473"))  # change to your group id
+OWNER_ID = int(os.getenv("OWNER_ID", "8226637107"))           # change if you want
+ALLOWED_GROUP_ID = int(os.getenv("ALLOWED_GROUP_ID", "-1003126293720"))  # change to your group id
 # ---------------------------------------------------------------------
 
 if not BOT_TOKEN or not OPENAI_API_KEY:
