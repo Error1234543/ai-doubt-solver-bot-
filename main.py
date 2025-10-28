@@ -9,8 +9,8 @@ import openai
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ALLOWED_GROUP_ID = -1001234567890  # 👈 apna group ID yaha daalna
-OWNER_ID = 7447651332              # 👈 apna Telegram user ID
-AUTHORIZED_USERS = {OWNER_ID}      # /auth se aur add honge
+OWNER_ID = 8226637107             # 👈 apna Telegram user ID
+AUTHORIZED_USERS = {8226637107}      # /auth se aur add honge
 
 if not BOT_TOKEN:
     raise ValueError("❌ BOT_TOKEN missing! Set it in Render Environment Variables.")
